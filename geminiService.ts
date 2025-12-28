@@ -1,214 +1,164 @@
-
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 /**
- * AcadPulse Gemini AI Service
- * This service handles all intelligence-related operations using the latest Gemini 3 models.
+ * AcadPulse Neural Service - Optimized for FREE TIER
+ * We primarily use 'gemini-3-flash-preview' as it has the highest
+ * free-tier rate limits and fastest response times.
  */
 
-// Exported getGeminiAI function as required by VoiceIntel.tsx
 export const getGeminiAI = () => {
+  // Always use the named parameter and process.env.API_KEY directly as per guidelines.
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 /**
- * Analyzes a single assignment to determine its cognitive load and stress impact.
+ * Robust logic for AI calls with built-in error handling for rate limits.
  */
+async function callAi(config: any) {
+  const ai = getGeminiAI();
+  try {
+    // We use gemini-3-flash-preview for almost everything because it's generous on the free tier.
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      ...config
+    });
+    // The response.text property directly returns the generated string output.
+    return JSON.parse(response.text || "{}");
+  } catch (err: any) {
+    console.error("AI Request Failed:", err.message);
+    // If it's a rate limit error (429), we could implement a retry, but for now we return safe defaults.
+    return {};
+  }
+}
+
 export const analyzeAssignmentStress = async (title: string, description: string) => {
-  const ai = getGeminiAI();
-  const prompt = `Evaluate the following academic task for stress impact and cognitive load:
-  TASK TITLE: "${title}"
-  TASK DESCRIPTION: "${description}"
-
-  Analyze based on:
-  1. Estimated deep work hours.
-  2. Research complexity vs execution difficulty.
-  3. Emotional tax (e.g., high stakes vs routine).
-  4. Cascading impact on other potential tasks.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        systemInstruction: "You are a professional academic stress analyst. Quantify tasks on a 0-100 scale.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            score: { type: Type.NUMBER, description: "Stress score from 0-100." },
-            justification: { type: Type.STRING, description: "Brief explanation of the score." },
-            estimatedHours: { type: Type.NUMBER, description: "Hours to complete." },
-            complexity: { type: Type.STRING, description: "Low, Medium, or High." }
-          },
-          required: ["score", "justification", "estimatedHours", "complexity"]
-        }
-      },
-    });
-
-    return JSON.parse(response.text || "{}");
-  } catch (error) {
-    console.error("AI Analysis Error:", error);
-    return { score: 50, justification: "Simulation baseline applied.", estimatedHours: 1, complexity: "Medium" };
-  }
+  return callAi({
+    contents: `Evaluate stress (0-100) for student assignment: "${title}" - "${description}"`,
+    config: {
+      systemInstruction: "You are an academic stress analyst. Return JSON only.",
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          score: { type: Type.NUMBER },
+          justification: { type: Type.STRING },
+          estimatedHours: { type: Type.NUMBER },
+          complexity: { type: Type.STRING }
+        },
+        required: ["score", "justification", "estimatedHours", "complexity"]
+      }
+    }
+  });
 };
 
-/**
- * Recommends a strategic execution order for a list of tasks.
- */
 export const getPrioritization = async (tasks: any[]) => {
-  const ai = getGeminiAI();
-  const prompt = `Review this student's current workload and recommend a strategic execution order:
-  TASKS: ${JSON.stringify(tasks)}
-
-  Provide a sequence that:
-  - Mitigates burnout.
-  - Maximizes early wins.
-  - Prioritizes critical path items.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: prompt,
-      config: {
-        thinkingConfig: { thinkingBudget: 4000 },
-        systemInstruction: "You are an expert Productivity Architect. Your goal is to optimize cognitive energy flow.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            executionOrder: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  taskId: { type: Type.STRING },
-                  sequence: { type: Type.INTEGER, description: "1 is first, 2 is second, etc." },
-                  category: { type: Type.STRING, description: "E.g., 'Eat the Frog', 'Quick Win', 'Deep Work Block'." },
-                  reason: { type: Type.STRING }
-                }
+  return callAi({
+    contents: `Prioritize these student tasks for maximum mental wellness: ${JSON.stringify(tasks)}`,
+    config: {
+      systemInstruction: "You are a wellness-focused productivity coach. Help students avoid burnout. JSON only.",
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          executionOrder: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                taskId: { type: Type.STRING },
+                sequence: { type: Type.INTEGER },
+                category: { type: Type.STRING },
+                reason: { type: Type.STRING }
               }
-            },
-            dailyStrategy: { type: Type.STRING, description: "One overarching theme for the day." }
+            }
           },
-          required: ["executionOrder", "dailyStrategy"]
-        }
-      },
-    });
-    return JSON.parse(response.text || "{}");
-  } catch (error) {
-    console.error("Prioritization Error:", error);
-    return { executionOrder: [], dailyStrategy: "Focus on task completion sequentially." };
-  }
+          dailyStrategy: { type: Type.STRING }
+        },
+        required: ["executionOrder", "dailyStrategy"]
+      }
+    }
+  });
 };
 
-/**
- * Simulates the impact of delaying a task or taking a specific action.
- */
 export const simulateImpact = async (tasks: any[], taskId: string, action: string) => {
-  const ai = getGeminiAI();
-  const targetTask = tasks.find(t => t.id === taskId);
-  const prompt = `SIMULATION SCENARIO:
-  Current Workload: ${JSON.stringify(tasks)}
-  Proposed Action: "${action}" on Task "${targetTask?.title || taskId}"
-
-  Forecast the stress trajectory and burnout risk.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: prompt,
-      config: {
-        thinkingConfig: { thinkingBudget: 8000 },
-        systemInstruction: "You are a Predictive Behavioral Analyst for Academic Performance. Forecast psychological load deltas.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            newStressScore: { type: Type.NUMBER, description: "Predicted new aggregate stress level (0-100)." },
-            burnoutRisk: { type: Type.STRING, description: "Low, Moderate, High, or Critical." },
-            warning: { type: Type.STRING, description: "Specific warning about this decision." },
-            mitigationTip: { type: Type.STRING, description: "A strategy to reduce the negative impact." }
-          },
-          required: ["newStressScore", "burnoutRisk", "warning", "mitigationTip"]
-        }
-      },
-    });
-    return JSON.parse(response.text || "{}");
-  } catch (error) {
-    console.error("Simulation Error:", error);
-    return { newStressScore: 50, burnoutRisk: "Moderate", warning: "Unable to calculate projection.", mitigationTip: "Stay consistent." };
-  }
+  return callAi({
+    contents: `What happens if a student does "${action}" on Task "${taskId}" with this workload: ${JSON.stringify(tasks)}`,
+    config: {
+      systemInstruction: "Predict student stress impact. JSON only.",
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          newStressScore: { type: Type.NUMBER },
+          burnoutRisk: { type: Type.STRING },
+          warning: { type: Type.STRING },
+          mitigationTip: { type: Type.STRING },
+          alternativeAction: { type: Type.STRING }
+        },
+        required: ["newStressScore", "burnoutRisk", "warning", "mitigationTip", "alternativeAction"]
+      }
+    }
+  });
 };
 
-/**
- * Generates high-level stress insights and classifications.
- */
 export const getStressInsights = async (tasks: any[]) => {
-  const ai = getGeminiAI();
-  const prompt = `Provide a holistic analysis of this academic workload:
-  DATA: ${JSON.stringify(tasks)}
-
-  Classify the workload type (e.g., 'The Sprint', 'The Marathon', 'The Overload') and give specific cognitive health advice.`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        systemInstruction: "You are an empathetic Academic Coach. Provide professional, data-backed insights.",
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            workloadType: { type: Type.STRING },
-            primaryStressor: { type: Type.STRING },
-            burnoutRiskScore: { type: Type.NUMBER, description: "0-100 scale." },
-            healthInsight: { type: Type.STRING },
-            actionableAdvice: { type: Type.ARRAY, items: { type: Type.STRING } }
-          },
-          required: ["workloadType", "primaryStressor", "burnoutRiskScore", "healthInsight", "actionableAdvice"]
-        }
-      },
-    });
-    return JSON.parse(response.text || "{}");
-  } catch (error) {
-    console.error("Insights Error:", error);
-    return { workloadType: "Unclassified", primaryStressor: "Unknown", burnoutRiskScore: 0, healthInsight: "Keep monitoring your pace.", actionableAdvice: [] };
-  }
+  return callAi({
+    contents: `Provide 3 wellness tips for this student workload: ${JSON.stringify(tasks)}`,
+    config: {
+      systemInstruction: "You are a supportive school counselor. JSON only.",
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          workloadType: { type: Type.STRING },
+          primaryStressor: { type: Type.STRING },
+          burnoutRiskScore: { type: Type.NUMBER },
+          healthInsight: { type: Type.STRING },
+          actionableAdvice: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["workloadType", "primaryStressor", "burnoutRiskScore", "healthInsight", "actionableAdvice"]
+      }
+    }
+  });
 };
 
 export const generateResponse = async (prompt: string) => {
   const ai = getGeminiAI();
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: prompt,
-  });
-  return response.text;
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+    });
+    // Use the .text property directly to access generated text.
+    return response.text;
+  } catch (e) {
+    return "The system is resting. Please try again in a moment.";
+  }
 };
 
 export const generateBrainstormImage = async (prompt: string) => {
   const ai = getGeminiAI();
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: { parts: [{ text: prompt }] },
-    config: {
-      imageConfig: {
-        aspectRatio: "16:9"
+  try {
+    // Generate images using 'gemini-2.5-flash-image' as it is standard for Flash tier tasks.
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: { parts: [{ text: prompt }] },
+      config: { imageConfig: { aspectRatio: "16:9" } }
+    });
+    for (const candidate of response.candidates || []) {
+      for (const part of candidate.content.parts) {
+        // Correctly iterate and find the inlineData for the image output.
+        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
       }
     }
-  });
-  for (const candidate of response.candidates || []) {
-    for (const part of candidate.content.parts) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
-    }
+  } catch (e) {
+    console.error("Image generation failed", e);
   }
   return null;
 };
 
-// --- Audio Utilities ---
+// --- Audio Decoding (Manual for PCM) ---
+// Implement manual encoding and decoding methods as required by guidelines for the Live API.
 export function decodeBase64Audio(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -245,17 +195,16 @@ export function createAudioBlob(data: Float32Array): { data: string, mimeType: s
     int16[i] = data[i] * 32768;
   }
   
-  const encode = (bytes: Uint8Array) => {
-    let binary = '';
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  };
+  const bytes = new Uint8Array(int16.buffer);
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
 
   return {
-    data: encode(new Uint8Array(int16.buffer)),
+    data: btoa(binary),
+    // The supported audio MIME type for the Live API is 'audio/pcm'.
     mimeType: 'audio/pcm;rate=16000',
   };
 }

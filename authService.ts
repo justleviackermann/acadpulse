@@ -5,13 +5,13 @@ import {
   signOut, 
   onAuthStateChanged,
   updateProfile
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+} from "firebase/auth";
 import { 
   doc, 
   getDoc, 
   setDoc, 
   updateDoc 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "firebase/firestore";
 import { auth, db } from './firebase';
 import { UserRole, UserProfile } from './types';
 
@@ -34,8 +34,6 @@ export const authService = {
         if (userDoc.exists()) {
           callback(userDoc.data() as UserProfile);
         } else {
-          // If doc doesn't exist yet but user is authenticated, 
-          // they might be in the middle of sign up.
           callback(null);
         }
       } else {

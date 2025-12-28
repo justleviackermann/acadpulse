@@ -1,18 +1,25 @@
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-// Note: In a real production environment, these should be in environment variables.
-// For the purpose of this hackathon-ready demo, we assume the Firebase project is configured.
+/**
+ * Robust environment variable retriever for Firebase
+ */
 const firebaseConfig = {
-  apiKey: "AIzaSy_demo_key",
-  authDomain: "acadpulse-demo.firebaseapp.com",
-  projectId: "acadpulse-demo",
-  storageBucket: "acadpulse-demo.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:demo"
+  // Cast import.meta to any to resolve TS error: Property 'env' does not exist on type 'ImportMeta'
+  apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || "",
+  authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || ""
 };
+
+// Simple check to warn if keys are missing
+if (!firebaseConfig.apiKey) {
+  console.warn("Firebase API Key is missing. Check your .env file.");
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

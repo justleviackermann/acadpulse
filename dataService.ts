@@ -11,13 +11,12 @@ import {
   deleteDoc,
   Timestamp,
   arrayUnion
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "firebase/firestore";
 import { db, auth } from './firebase';
 import { Class, Task, UserRole } from './types';
 import { analyzeAssignmentStress } from './geminiService';
 
 export const dataService = {
-  // --- Class Management ---
   createClass: async (name: string): Promise<Class> => {
     const teacherUid = auth.currentUser?.uid;
     if (!teacherUid) throw new Error("Unauthorized");
@@ -58,9 +57,7 @@ export const dataService = {
     return { id: classDoc.id, ...classDoc.data() } as Class;
   },
 
-  // --- Task Management ---
   createTask: async (taskData: Omit<Task, 'id' | 'stressScore'>): Promise<Task> => {
-    // AI analyzes the stress impact
     const analysis = await analyzeAssignmentStress(taskData.title, taskData.description);
     
     const newTask = {
@@ -111,16 +108,12 @@ export const dataService = {
     await updateDoc(doc(db, 'tasks', taskId), { includeInPulse });
   },
 
-  // --- Advanced Analytics ---
   getStudentStressStats: async (studentUid: string) => {
     const q = query(collection(db, 'tasks'), where('studentUid', '==', studentUid));
     const snapshot = await getDocs(q);
     const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
     
     const activeTasks = tasks.filter(t => t.includeInPulse || t.type === 'CLASS');
-    
-    // Formula: Weight approach with decay
-    // We calculate a normalized index based on raw stress points
     const rawScore = activeTasks.reduce((acc, t) => acc + t.stressScore, 0);
     const score = Math.min(rawScore, 100);
     
@@ -165,7 +158,6 @@ export const dataService = {
   },
 
   getMonthlyProjection: async (classId: string) => {
-    // In a real app, this would query aggregated class history
     return [
       { name: 'Week 1', load: 35 },
       { name: 'Week 2', load: 45 },
