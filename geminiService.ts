@@ -26,26 +26,31 @@ export const analyzeAssignmentStress = async (title: string, description: string
   3. Emotional tax (e.g., high stakes vs routine).
   4. Cascading impact on other potential tasks.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: prompt,
-    config: {
-      systemInstruction: "You are a professional academic stress analyst. Quantify tasks on a 0-100 scale.",
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          score: { type: Type.NUMBER, description: "Stress score from 0-100." },
-          justification: { type: Type.STRING, description: "Brief explanation of the score." },
-          estimatedHours: { type: Type.NUMBER, description: "Hours to complete." },
-          complexity: { type: Type.STRING, description: "Low, Medium, or High." }
-        },
-        required: ["score", "justification", "estimatedHours", "complexity"]
-      }
-    },
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        systemInstruction: "You are a professional academic stress analyst. Quantify tasks on a 0-100 scale.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            score: { type: Type.NUMBER, description: "Stress score from 0-100." },
+            justification: { type: Type.STRING, description: "Brief explanation of the score." },
+            estimatedHours: { type: Type.NUMBER, description: "Hours to complete." },
+            complexity: { type: Type.STRING, description: "Low, Medium, or High." }
+          },
+          required: ["score", "justification", "estimatedHours", "complexity"]
+        }
+      },
+    });
 
-  return JSON.parse(response.text || "{}");
+    return JSON.parse(response.text || "{}");
+  } catch (error) {
+    console.error("AI Analysis Error:", error);
+    return { score: 50, justification: "Simulation baseline applied.", estimatedHours: 1, complexity: "Medium" };
+  }
 };
 
 /**
@@ -61,35 +66,40 @@ export const getPrioritization = async (tasks: any[]) => {
   - Maximizes early wins.
   - Prioritizes critical path items.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: prompt,
-    config: {
-      thinkingConfig: { thinkingBudget: 4000 },
-      systemInstruction: "You are an expert Productivity Architect. Your goal is to optimize cognitive energy flow.",
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          executionOrder: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                taskId: { type: Type.STRING },
-                sequence: { type: Type.INTEGER, description: "1 is first, 2 is second, etc." },
-                category: { type: Type.STRING, description: "E.g., 'Eat the Frog', 'Quick Win', 'Deep Work Block'." },
-                reason: { type: Type.STRING }
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: prompt,
+      config: {
+        thinkingConfig: { thinkingBudget: 4000 },
+        systemInstruction: "You are an expert Productivity Architect. Your goal is to optimize cognitive energy flow.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            executionOrder: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  taskId: { type: Type.STRING },
+                  sequence: { type: Type.INTEGER, description: "1 is first, 2 is second, etc." },
+                  category: { type: Type.STRING, description: "E.g., 'Eat the Frog', 'Quick Win', 'Deep Work Block'." },
+                  reason: { type: Type.STRING }
+                }
               }
-            }
+            },
+            dailyStrategy: { type: Type.STRING, description: "One overarching theme for the day." }
           },
-          dailyStrategy: { type: Type.STRING, description: "One overarching theme for the day." }
-        },
-        required: ["executionOrder", "dailyStrategy"]
-      }
-    },
-  });
-  return JSON.parse(response.text || "{}");
+          required: ["executionOrder", "dailyStrategy"]
+        }
+      },
+    });
+    return JSON.parse(response.text || "{}");
+  } catch (error) {
+    console.error("Prioritization Error:", error);
+    return { executionOrder: [], dailyStrategy: "Focus on task completion sequentially." };
+  }
 };
 
 /**
@@ -104,26 +114,31 @@ export const simulateImpact = async (tasks: any[], taskId: string, action: strin
 
   Forecast the stress trajectory and burnout risk.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-pro-preview',
-    contents: prompt,
-    config: {
-      thinkingConfig: { thinkingBudget: 8000 },
-      systemInstruction: "You are a Predictive Behavioral Analyst for Academic Performance. Forecast psychological load deltas.",
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          newStressScore: { type: Type.NUMBER, description: "Predicted new aggregate stress level (0-100)." },
-          burnoutRisk: { type: Type.STRING, description: "Low, Moderate, High, or Critical." },
-          warning: { type: Type.STRING, description: "Specific warning about this decision." },
-          mitigationTip: { type: Type.STRING, description: "A strategy to reduce the negative impact." }
-        },
-        required: ["newStressScore", "burnoutRisk", "warning", "mitigationTip"]
-      }
-    },
-  });
-  return JSON.parse(response.text || "{}");
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: prompt,
+      config: {
+        thinkingConfig: { thinkingBudget: 8000 },
+        systemInstruction: "You are a Predictive Behavioral Analyst for Academic Performance. Forecast psychological load deltas.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            newStressScore: { type: Type.NUMBER, description: "Predicted new aggregate stress level (0-100)." },
+            burnoutRisk: { type: Type.STRING, description: "Low, Moderate, High, or Critical." },
+            warning: { type: Type.STRING, description: "Specific warning about this decision." },
+            mitigationTip: { type: Type.STRING, description: "A strategy to reduce the negative impact." }
+          },
+          required: ["newStressScore", "burnoutRisk", "warning", "mitigationTip"]
+        }
+      },
+    });
+    return JSON.parse(response.text || "{}");
+  } catch (error) {
+    console.error("Simulation Error:", error);
+    return { newStressScore: 50, burnoutRisk: "Moderate", warning: "Unable to calculate projection.", mitigationTip: "Stay consistent." };
+  }
 };
 
 /**
@@ -136,26 +151,31 @@ export const getStressInsights = async (tasks: any[]) => {
 
   Classify the workload type (e.g., 'The Sprint', 'The Marathon', 'The Overload') and give specific cognitive health advice.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: prompt,
-    config: {
-      systemInstruction: "You are an empathetic Academic Coach. Provide professional, data-backed insights.",
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          workloadType: { type: Type.STRING },
-          primaryStressor: { type: Type.STRING },
-          burnoutRiskScore: { type: Type.NUMBER, description: "0-100 scale." },
-          healthInsight: { type: Type.STRING },
-          actionableAdvice: { type: Type.ARRAY, items: { type: Type.STRING } }
-        },
-        required: ["workloadType", "primaryStressor", "burnoutRiskScore", "healthInsight", "actionableAdvice"]
-      }
-    },
-  });
-  return JSON.parse(response.text || "{}");
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+      config: {
+        systemInstruction: "You are an empathetic Academic Coach. Provide professional, data-backed insights.",
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            workloadType: { type: Type.STRING },
+            primaryStressor: { type: Type.STRING },
+            burnoutRiskScore: { type: Type.NUMBER, description: "0-100 scale." },
+            healthInsight: { type: Type.STRING },
+            actionableAdvice: { type: Type.ARRAY, items: { type: Type.STRING } }
+          },
+          required: ["workloadType", "primaryStressor", "burnoutRiskScore", "healthInsight", "actionableAdvice"]
+        }
+      },
+    });
+    return JSON.parse(response.text || "{}");
+  } catch (error) {
+    console.error("Insights Error:", error);
+    return { workloadType: "Unclassified", primaryStressor: "Unknown", burnoutRiskScore: 0, healthInsight: "Keep monitoring your pace.", actionableAdvice: [] };
+  }
 };
 
 export const generateResponse = async (prompt: string) => {

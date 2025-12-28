@@ -59,7 +59,7 @@ const App: React.FC = () => {
 
   if (!currentUser) {
     return (
-      <div className="h-screen bg-[#020617] flex items-center justify-center p-6 relative overflow-hidden">
+      <div className="h-screen bg-[#020617] flex items-center justify-center p-6 relative overflow-hidden text-white">
         <div className="absolute top-[-30%] right-[-10%] w-[60%] h-[60%] bg-blue-600/5 blur-[160px] rounded-full animate-pulse"></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/5 blur-[160px] rounded-full"></div>
         
@@ -72,7 +72,7 @@ const App: React.FC = () => {
 
           <form onSubmit={handleAuth} className="space-y-4">
             {isSigningUp && (
-              <div className="space-y-1 text-left animate-in slide-in-from-top-2">
+              <div className="space-y-1 text-left">
                 <label className="text-[10px] font-black text-gray-500 uppercase px-4 tracking-widest">Display Identity</label>
                 <input 
                   type="text" 
@@ -125,16 +125,37 @@ const App: React.FC = () => {
     return <Onboarding onComplete={refreshUser} />;
   }
 
-  const renderDashboard = () => {
-    if (!currentUser) return null;
-    if (currentUser.role === UserRole.TEACHER) {
-      return <TeacherDashboard user={currentUser} />;
+  const renderContent = () => {
+    switch (currentView) {
+      case AppView.DASHBOARD:
+      case AppView.ASSIGNMENTS: // Assignments view maps to relevant dashboard for simplicity
+        return currentUser.role === UserRole.TEACHER 
+          ? <TeacherDashboard user={currentUser} /> 
+          : <StudentDashboard user={currentUser} />;
+      
+      case AppView.INTELLIGENCE_HUB:
+        return <IntelligenceHub user={currentUser} />;
+        
+      case AppView.STRESS_ANALYSIS:
+        return <VoiceIntel />;
+        
+      case AppView.RESOURCES:
+        return (
+          <div className="space-y-8 pb-32">
+            <MemoryBank />
+            <VisionLab />
+          </div>
+        );
+      
+      default:
+        return currentUser.role === UserRole.TEACHER 
+          ? <TeacherDashboard user={currentUser} /> 
+          : <StudentDashboard user={currentUser} />;
     }
-    return <StudentDashboard user={currentUser} />;
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#020617] overflow-hidden font-sans">
+    <div className="flex h-screen w-full bg-[#020617] overflow-hidden font-sans text-white">
       <Sidebar 
         currentView={currentView} 
         onViewChange={setCurrentView} 
@@ -144,15 +165,7 @@ const App: React.FC = () => {
       
       <main className="flex-1 h-screen overflow-y-auto relative custom-scrollbar bg-[radial-gradient(circle_at_top_right,rgba(37,99,235,0.03),transparent_50%)]">
         <div className="relative z-10 min-h-full">
-          {currentView === AppView.DASHBOARD && renderDashboard()}
-          {currentView === AppView.INTELLIGENCE_HUB && <IntelligenceHub user={currentUser} />}
-          {currentView === AppView.STRESS_ANALYSIS && <VoiceIntel />}
-          {currentView === AppView.RESOURCES && (
-            <div className="space-y-8 pb-32">
-              <MemoryBank />
-              <VisionLab />
-            </div>
-          )}
+          {renderContent()}
         </div>
       </main>
     </div>
