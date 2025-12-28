@@ -1,0 +1,8 @@
+{
+  "name": "AcadPulse: Academic Stress & Workload Intelligence",
+  "description": "An AI-powered system for monitoring student workload and teacher impact, providing predictive stress analytics and personalized academic support.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
