@@ -25,7 +25,8 @@ export const dataService = {
     const classData = {
       name,
       code,
-      teacherUid,
+      teacherUid, // Legacy
+      teacherUids: [teacherUid],
       studentUids: []
     };
 
@@ -36,9 +37,56 @@ export const dataService = {
   getTeacherClasses: async (): Promise<Class[]> => {
     const uid = auth.currentUser?.uid;
     if (!uid) return [];
-    const q = query(collection(db, 'classes'), where('teacherUid', '==', uid));
+
+    // Modern query: check if uid is in teacherUids array
+    const q = query(collection(db, 'classes'), where('teacherUids', 'array-contains', uid));
+    const snapshot = await getDocs(q);
+
+    // Fallback/Legacy query: check teacherUid field (if we want to support old classes that haven't been migrated)
+    // Since we can't do OR query easily, let's just do a second query if needed, or rely on migration.
+    // Ideally, for this hackathon, just assuming new classes or ones created with new code work is fine.
+    // To be safe, we can try fetching old style if new style returns empty, or just merge?
+    // Let's simpler: fetch by teacherUid as well.
+    const qLegacy = query(collection(db, 'classes'), where('teacherUid', '==', uid));
+    const snapshotLegacy = await getDocs(qLegacy);
+
+    const merged = new Map();
+    snapshot.docs.forEach(d => merged.set(d.id, { id: d.id, ...d.data() }));
+    snapshotLegacy.docs.forEach(d => merged.set(d.id, { id: d.id, ...d.data() }));
+
+    return Array.from(merged.values()) as Class[];
+  },
+
+  getStudentClasses: async (): Promise<Class[]> => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return [];
+    // Query classes where studentUids array contains current user uid
+    const q = query(collection(db, 'classes'), where('studentUids', 'array-contains', uid));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Class));
+  },
+
+  joinClassAsTeacher: async (code: string): Promise<Class | null> => {
+    const teacherUid = auth.currentUser?.uid;
+    if (!teacherUid) throw new Error("Unauthorized");
+
+    const q = query(collection(db, 'classes'), where('code', '==', code));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+
+    const classDoc = snapshot.docs[0];
+    const classData = classDoc.data();
+
+    // Check if already a teacher
+    if (classData.teacherUids?.includes(teacherUid) || classData.teacherUid === teacherUid) {
+      return { id: classDoc.id, ...classData } as Class;
+    }
+
+    await updateDoc(doc(db, 'classes', classDoc.id), {
+      teacherUids: arrayUnion(teacherUid)
+    });
+
+    return { id: classDoc.id, ...classDoc.data(), teacherUids: [...(classData.teacherUids || []), teacherUid] } as Class;
   },
 
   joinClass: async (code: string): Promise<Class | null> => {
@@ -109,13 +157,6 @@ export const dataService = {
   },
 
   getClassTasks: async (classId: string): Promise<Task[]> => {
-    // Query tasks that belong to this class (for the teacher calendar)
-    // Since we duplicate tasks per student, we just need unique title/date pairs or just all of them to show "load".
-    // Better: Query tasks where classId == classId. 
-    // Wait, we need to show ALL tasks for these students to see their stress?
-    // The requirement says: "see the stress of that class".
-    // So we need to fetch tasks for students in the class.
-
     // 1. Get Class Students
     const classSnap = await getDoc(doc(db, 'classes', classId));
     if (!classSnap.exists()) return [];
@@ -123,23 +164,28 @@ export const dataService = {
 
     if (classData.studentUids.length === 0) return [];
 
-    // 2. Query tasks for these students. 
-    // Firestore 'in' query limit is 10. If class is big, this fails.
-    // Optimization: Just fetch tasks with classId == classId to show *assignments* made to this class.
-    // But to show *stress*, we need the student's personal schedule? 
-    // The requirement: "see the stress of that class".
+    // REQUIREMENT: "Teacher can see academic works from other staffs"
+    // This means we need to fetch ALL 'CLASS' type tasks for these students,
+    // regardless of whether they were assigned to THIS classId or another class.
 
-    // Let's implement: Get all tasks where classId == classId (Assignments)
-    // AND optional: Aggregate generic stress.
+    // Optimization: Parallel fetch for students (Max 10 per batch usually, but we'll map all)
+    // Note: This scales poorly for huge classes, but is fine for this hackathon demo.
+    const promises = classData.studentUids.map(async (uid) => {
+      const q = query(collection(db, 'tasks'),
+        where('studentUid', '==', uid),
+        where('type', '==', 'CLASS')
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
+    });
 
-    const q = query(collection(db, 'tasks'), where('classId', '==', classId));
-    const snapshot = await getDocs(q);
+    const results = await Promise.all(promises);
 
-    // We might want to deduplicate by title for the calendar view if we just want to show "what is assigned"
-    // But for stress heatmap, we need volume.
-    // Let's return all, and let the UI handle aggregation.
+    // Flatten and deduplicate by Task ID
+    const allTasks = results.flat();
+    const uniqueTasks = Array.from(new Map(allTasks.map(t => [t.id, t])).values());
 
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+    return uniqueTasks;
   },
 
   getStudentTasks: async (): Promise<Task[]> => {
@@ -163,7 +209,24 @@ export const dataService = {
     // For robustness in this demo, we can just call seedExamData here or check a flag
     // We'll trust the component calls seedExamData
 
-    const activeTasks = tasks.filter(t => t.includeInPulse || t.type === 'CLASS');
+    const now = new Date();
+    const thirtyDays = new Date();
+    thirtyDays.setDate(now.getDate() + 30);
+    const recentPast = new Date();
+    recentPast.setDate(now.getDate() - 7);
+
+    const activeTasks = tasks.filter(t => {
+      const isRelevantType = t.includeInPulse || t.type === 'CLASS';
+      if (!isRelevantType) return false;
+
+      // If no due date, maybe always show? Or never?
+      // For class tasks, we assume due date. Personal tasks might not?
+      // Let's safe guard.
+      if (!t.dueDate) return true;
+
+      const d = new Date(t.dueDate);
+      return d >= recentPast && d <= thirtyDays;
+    });
 
     const avgStress = activeTasks.length > 0
       ? activeTasks.reduce((acc, t) => acc + t.stressScore, 0) / activeTasks.length
@@ -255,13 +318,34 @@ export const dataService = {
     if (!classSnap.exists()) return [];
 
     const classData = classSnap.data() as Class;
+    const now = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(now.getDate() + 30);
+
     const metricPromises = classData.studentUids.map(async (uid) => {
       const q = query(collection(db, 'tasks'), where('studentUid', '==', uid));
       const snapshot = await getDocs(q);
       const tasks = snapshot.docs.map(doc => doc.data() as Task);
 
-      const visibleTasks = tasks.filter(t => !t.isPrivate || t.includeInPulse);
-      const score = Math.min(visibleTasks.reduce((acc, t) => acc + t.stressScore, 0), 100);
+      // Filter for ACTIVE Pulse/Academic tasks within the next 30 days
+      const visibleTasks = tasks.filter(t => {
+        if (t.isPrivate && !t.includeInPulse) return false;
+        if (!t.dueDate) return false;
+        const d = new Date(t.dueDate);
+        // Check if due date is within relevant window (e.g., last 7 days to next 30 days)
+        // We include recent past to reflect ongoing stress/recovery
+        const recentPast = new Date();
+        recentPast.setDate(now.getDate() - 7);
+        return d >= recentPast && d <= thirtyDaysFromNow;
+      });
+
+      // Calculate total load for this period
+      const totalLoad = visibleTasks.reduce((acc, t) => acc + t.stressScore, 0);
+
+      // Normalize: If load is > 100,cap at 100.
+      // But typically "Mean Stress" is 0-100 scale.
+      const score = Math.min(totalLoad, 100);
+
       return { score, hasPersonalTasks: tasks.some(t => t.type === 'PERSONAL') };
     });
 
@@ -283,11 +367,59 @@ export const dataService = {
   },
 
   getMonthlyProjection: async (classId: string) => {
-    return [
-      { name: 'Week 1', load: 35 },
-      { name: 'Week 2', load: 45 },
-      { name: 'Week 3 (Peak)', load: 82 },
-      { name: 'Week 4', load: 28 },
-    ];
+    // Fetch generic tasks for this class (assignments)
+    const q = query(collection(db, 'tasks'), where('classId', '==', classId));
+    const snapshot = await getDocs(q);
+    const tasks = snapshot.docs.map(d => d.data() as Task);
+
+    // Group by week for next 4 weeks
+    const now = new Date();
+    const weeks = [0, 1, 2, 3].map(offset => {
+      const start = new Date(now);
+      start.setDate(now.getDate() + (offset * 7));
+      const end = new Date(start);
+      end.setDate(start.getDate() + 7);
+      return { name: `Week ${offset + 1}`, start, end, load: 0 };
+    });
+
+    tasks.forEach(task => {
+      if (!task.dueDate) return;
+      const d = new Date(task.dueDate);
+      const week = weeks.find(w => d >= w.start && d < w.end);
+      if (week) {
+        week.load += (task.stressScore || 0);
+      }
+    });
+
+    // Normalize or cap? Users might want raw load.
+    // But graph expects maybe 0-100 for color? 
+    // Let's visual cap at 100 for the bar, but let value be real?
+    // The UI checks > 70 for red.
+    // If we have 30 students and each has 1 task, sum is 30 * 50 = 1500?
+    // Wait, this is "Cohort Stress Outlook". 
+    // Is it average stress per student? Or total volume?
+    // Logic in dashboard: 
+    // <Bar dataKey="load" ... /> 
+    // Alert if load > 75. 
+    // Existing dummy data had 35, 45, 82, 28.
+    // If I sum ALL stress scores of assignments, for 20 students, it will be huge.
+    // Ah, `getClassTasks` as defined above currently returns assignments.
+    // `assignToClass` creates ONE task per student?
+    // Let's check `assignToClass`.
+    // It creates a task for EACH student. 
+    // So if there are 10 students, we have 10 tasks.
+    // If we sum them, it's 10x load.
+    // We should probably AVERAGE the load per student for the cohort view.
+    // i.e. Total Stress / Student Count.
+
+    // Let's fetch student count.
+    const classSnap = await getDoc(doc(db, 'classes', classId));
+    const studentCount = classSnap.exists() ? (classSnap.data().studentUids?.length || 1) : 1;
+
+    // Averages
+    return weeks.map(w => ({
+      name: w.name,
+      load: Math.round(w.load / (studentCount || 1))
+    }));
   }
 };

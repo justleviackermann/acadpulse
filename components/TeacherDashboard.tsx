@@ -67,12 +67,44 @@ const TeacherDashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
     }
   };
 
-  const handleCreateClass = async (e: React.FormEvent) => {
+  /* Join/Create Mode State */
+  const [isJoinMode, setIsJoinMode] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+
+  const handleAction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClassName) return;
-    const nc = await dataService.createClass(newClassName);
-    setClasses([...classes, nc]);
-    setNewClassName('');
+    if (isJoinMode) {
+      if (!joinCode) return;
+      try {
+        const joinedClass = await dataService.joinClassAsTeacher(joinCode);
+        if (joinedClass) {
+          // Check if already exists in list (locally)
+          if (!classes.find(c => c.id === joinedClass.id)) {
+            setClasses([...classes, joinedClass]);
+          }
+          setSelectedClass(joinedClass);
+          setJoinCode('');
+          alert(`Successfully joined class: ${joinedClass.name}`);
+        } else {
+          alert("Invalid Class Code or Class not found.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Failed to join class.");
+      }
+    } else {
+      if (!newClassName) return;
+      try {
+        const nc = await dataService.createClass(newClassName);
+        setClasses([...classes, nc]);
+        setNewClassName('');
+        setSelectedClass(nc);
+        alert("Class created successfully!");
+      } catch (err) {
+        console.error(err);
+        alert("Error creating class. Please ensure you are logged in.");
+      }
+    }
   };
 
   const handleAssignTask = async (e: React.FormEvent) => {
@@ -123,20 +155,43 @@ const TeacherDashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto pb-32 animate-in fade-in duration-700">
-      <header className="flex justify-between items-center">
+      <header className="flex justify-between items-center gap-4">
         <div>
           <h2 className="text-4xl font-black text-white tracking-tight">Educator Console</h2>
           <p className="text-gray-500 font-medium">Curriculum optimization & cohort mental health monitoring.</p>
         </div>
-        <form onSubmit={handleCreateClass} className="flex gap-2">
-          <input
-            value={newClassName}
-            onChange={e => setNewClassName(e.target.value)}
-            placeholder="New Cohort Designation"
-            className="bg-gray-900 border border-gray-800 px-6 py-3 rounded-2xl text-sm focus:border-blue-500 outline-none font-bold placeholder:text-gray-700 w-64 transition-all"
-          />
-          <button className="bg-blue-600 px-6 py-3 rounded-2xl text-sm font-black uppercase tracking-widest text-white hover:bg-blue-700 transition shadow-xl shadow-blue-900/20">Init Unit</button>
-        </form>
+        <div className="flex flex-col items-end gap-2">
+          <form onSubmit={handleAction} className="flex gap-2">
+            {isJoinMode ? (
+              <>
+                <input
+                  value={joinCode}
+                  onChange={e => setJoinCode(e.target.value)}
+                  placeholder="Enter Class Code"
+                  className="bg-gray-900 border border-gray-800 px-6 py-3 rounded-2xl text-sm focus:border-indigo-500 outline-none font-bold placeholder:text-gray-700 w-64 transition-all uppercase tracking-widest text-indigo-400"
+                />
+                <button className="bg-indigo-600 px-6 py-3 rounded-2xl text-sm font-black uppercase tracking-widest text-white hover:bg-indigo-700 transition shadow-xl shadow-indigo-900/20">Join</button>
+              </>
+            ) : (
+              <>
+                <input
+                  required
+                  value={newClassName}
+                  onChange={e => setNewClassName(e.target.value)}
+                  placeholder="Create New Class"
+                  className="bg-gray-900 border border-gray-800 px-6 py-3 rounded-2xl text-sm focus:border-blue-500 outline-none font-bold placeholder:text-gray-700 w-64 transition-all"
+                />
+                <button className="bg-blue-600 px-6 py-3 rounded-2xl text-sm font-black uppercase tracking-widest text-white hover:bg-blue-700 transition shadow-xl shadow-blue-900/20">Create Class</button>
+              </>
+            )}
+          </form>
+          <button
+            onClick={() => setIsJoinMode(!isJoinMode)}
+            className="text-[10px] uppercase font-bold text-gray-500 hover:text-white transition-colors tracking-widest"
+          >
+            {isJoinMode ? "Wait, I want to CREATE a new class" : "Or JOIN an existing class code"}
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -157,7 +212,7 @@ const TeacherDashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
                   <p className="font-black text-lg mb-1">{c.name}</p>
                   <div className="flex justify-between items-center text-[10px] font-mono tracking-widest opacity-60">
                     <span>{c.studentUids.length} MEMBERS</span>
-                    <span className="bg-gray-950 px-2 py-0.5 rounded border border-white/5 uppercase">{c.code}</span>
+                    {selectedClass?.id !== c.id && <span className="bg-gray-950 px-2 py-0.5 rounded border border-white/5 uppercase">{c.code}</span>}
                   </div>
                 </div>
               </button>
@@ -166,7 +221,40 @@ const TeacherDashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
         </div>
 
         <div className="lg:col-span-9 space-y-8">
-          <CalendarView tasks={classTasks} />
+
+          {selectedClass && (
+            <div className="bg-blue-600/10 border border-blue-500/30 p-6 rounded-[1.5rem] flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-blue-400 font-black uppercase tracking-widest text-xs mb-1">Class Access Code</h3>
+                <div className="flex items-center gap-4">
+                  <p className="text-4xl font-black text-white tracking-tighter">{selectedClass.code}</p>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedClass.code);
+                      alert("Class code copied to clipboard!");
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg transition-all"
+                    title="Copy Code"
+                  >
+                    📋
+                  </button>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-gray-500 text-[10px] font-mono uppercase tracking-widest">Share this code with students<br />to link them to this unit.</p>
+              </div>
+            </div>
+          )}
+
+          <CalendarView
+            tasks={classTasks}
+            onDateClick={(date) => {
+              setTaskDate(date);
+              // Optional: Scroll to form or highlight it
+              const form = document.querySelector('form[name="assignment-form"]');
+              if (form) form.scrollIntoView({ behavior: 'smooth' });
+            }}
+          />
 
           {selectedClass ? (
             <div className="space-y-8">
@@ -218,7 +306,7 @@ const TeacherDashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
                     <div className="text-[9px] font-black text-gray-500 uppercase px-3 py-1 bg-gray-950 rounded-full border border-gray-800">PREDICTIVE AI ACTIVE</div>
                   </div>
 
-                  <form onSubmit={handleAssignTask} className="space-y-4">
+                  <form name="assignment-form" onSubmit={handleAssignTask} className="space-y-4">
                     <input
                       required
                       value={taskTitle}

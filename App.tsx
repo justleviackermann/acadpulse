@@ -8,6 +8,7 @@ import TeacherDashboard from './components/TeacherDashboard';
 import Onboarding from './components/Onboarding';
 
 import StrategyPage from './components/StrategyPage';
+import StudentClasses from './components/StudentClasses';
 
 enum AppFlow {
   ROLE_SELECTION,
@@ -204,6 +205,11 @@ const App: React.FC = () => {
 
       case AppView.STRATEGY:
         return <StrategyPage user={currentUser} />;
+
+      case AppView.CLASSES:
+        return currentUser.role === UserRole.TEACHER
+          ? <TeacherDashboard user={currentUser} /> // Teacher sees dashboard or maybe we add a specific classes view later, but for now they manage via dashboard
+          : <StudentClasses user={currentUser} />;
 
       default:
         return currentUser.role === UserRole.TEACHER

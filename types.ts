@@ -28,7 +28,8 @@ export interface Class {
   id: string;
   name: string;
   code: string;
-  teacherUid: string;
+  teacherUid?: string; // Legacy support
+  teacherUids: string[];
   studentUids: string[];
 }
 
