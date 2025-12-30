@@ -23,15 +23,29 @@ const llamaMode = {
     estimatedHours: 4,
     complexity: "Medium"
   }),
-  prioritize: (tasks: any[]) => ({
-    executionOrder: tasks.map((t, i) => ({
-      taskId: t.id,
-      sequence: i + 1,
-      category: "Linear Sequence",
-      reason: "Prioritized via heuristic safety protocol."
-    })),
-    dailyStrategy: "Focus on steady incremental progress."
-  }),
+  prioritize: (tasks: any[]) => {
+    // Local Logic: Sort by (Stress * 0.6) + ((1/Days) * 100)
+    const sorted = [...tasks].sort((a, b) => {
+      const getScore = (t: any) => {
+        if (!t.dueDate) return 0;
+        const days = Math.max(0.1, (new Date(t.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        // Imminent boost (<= 1.5 days)
+        const urgency = days <= 1.5 ? 200 : (1 / days) * 50;
+        return ((t.stressScore || 50) * 0.6) + urgency;
+      };
+      return getScore(b) - getScore(a); // Descending Score
+    });
+
+    return {
+      executionOrder: sorted.map((t, i) => ({
+        taskId: t.id,
+        sequence: i + 1,
+        category: i < 3 ? "Immediate Action" : "Planned",
+        reason: i < 3 ? "Calculated high-yield via Local Heuristic protocol." : "Standard queue execution."
+      })),
+      dailyStrategy: "High-load vectors identified. Execute top 3 sorted by formulaic urgency."
+    };
+  },
   simulate: () => ({
     newStressScore: 65,
     burnoutRisk: "Moderate",
@@ -52,7 +66,7 @@ const llamaMode = {
  */
 async function callWithFallback(config: any, fallbackType: 'analyze' | 'prioritize' | 'simulate' | 'insights', context: any = null) {
   const ai = getGeminiAI();
-  
+
   // Tier 1: Gemini Pro
   try {
     console.log(`[AI] Attempting Tier 1: Pro (${fallbackType})`);
@@ -63,7 +77,7 @@ async function callWithFallback(config: any, fallbackType: 'analyze' | 'prioriti
     return JSON.parse(response.text || "{}");
   } catch (proError: any) {
     console.warn("[AI] Tier 1 Pro Failed. Falling back to Tier 2 Flash...", proError.message);
-    
+
     // Tier 2: Gemini Flash
     try {
       console.log(`[AI] Attempting Tier 2: Flash (${fallbackType})`);
@@ -74,11 +88,11 @@ async function callWithFallback(config: any, fallbackType: 'analyze' | 'prioriti
       return JSON.parse(response.text || "{}");
     } catch (flashError: any) {
       console.error("[AI] Tier 2 Flash Failed. Engaging Tier 3: Llama Heuristic.", flashError.message);
-      
+
       // Tier 3: Llama Heuristic (Local Logic)
-      switch(fallbackType) {
+      switch (fallbackType) {
         case 'analyze': return llamaMode.analyze(context?.title || "Task");
-        case 'prioritize': return llamaMode.prioritize(context?.tasks || []);
+        case 'prioritize': return llamaMode.prioritize(context?.tasks || []); // Pass tasks here!
         case 'simulate': return llamaMode.simulate();
         case 'insights': return llamaMode.insights();
         default: return {};
@@ -110,10 +124,16 @@ export const analyzeAssignmentStress = async (title: string, description: string
 
 export const getPrioritization = async (tasks: any[]) => {
   const config = {
-    contents: `Prioritize these tasks: ${JSON.stringify(tasks)}`,
+    contents: `Prioritize these tasks: ${JSON.stringify(tasks)}. 
+    CRITICAL SORTING INSTRUCTIONS:
+    1. CALCULATE SCORE: For each task, Score = (StressScore * 0.6) + ((1 / (DaysUntilDue + 0.1)) * 100).
+    2. SORT: Sort tasks by Score DESCENDING (Highest Score = Sequence 1).
+    3. SEQUENCE 1 RULE: This MUST be the task with the highest combined Urgency and Stress.
+    4. REVERSE CHECK: If a task is due in 30 days, it MUST NOT be Sequence 1 unless it has massive stress and requires immediate start.
+    5. OUTPUT: Return "executionOrder" where "sequence": 1 is the Top Priority.`,
     config: {
       thinkingConfig: { thinkingBudget: 2000 },
-      systemInstruction: "Productivity Architect. Optimize for energy. JSON only.",
+      systemInstruction: "Expert Strategist. You output a strictly prioritized list. Sequence 1 is the MOST URGENT. JSON only.",
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -251,7 +271,7 @@ export function createAudioBlob(data: Float32Array): { data: string, mimeType: s
   for (let i = 0; i < l; i++) {
     int16[i] = data[i] * 32768;
   }
-  
+
   const encode = (bytes: Uint8Array) => {
     let binary = '';
     const len = bytes.byteLength;

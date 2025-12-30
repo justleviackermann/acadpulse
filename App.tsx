@@ -9,6 +9,7 @@ import Onboarding from './components/Onboarding';
 
 import StrategyPage from './components/StrategyPage';
 import StudentClasses from './components/StudentClasses';
+import OverduePage from './components/OverduePage';
 
 enum AppFlow {
   ROLE_SELECTION,
@@ -222,6 +223,11 @@ const App: React.FC = () => {
 
       case AppView.STRATEGY:
         return <StrategyPage user={currentUser} />;
+
+      case AppView.TASKS:
+        return currentUser.role === UserRole.STUDENT
+          ? <OverduePage user={currentUser} />
+          : <TeacherDashboard user={currentUser} />; // Teachers might see their dashboard or a specific task overview
 
       case AppView.CLASSES:
         return currentUser.role === UserRole.TEACHER

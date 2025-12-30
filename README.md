@@ -1,40 +1,65 @@
 # AcadPulse: Cognitive Load Intelligence
 
-AcadPulse is a predictive academic management system that uses Gemini AI to quantify student stress and help educators simulate the impact of assignments before deployment.
+AcadPulse is a predictive academic management system that leverages **Google Gemini AI** to quantify student stress, optimize study schedules, and help educators simulate the impact of assignments before deployment. It bridges the gap between academic workload and mental well-being.
 
-## 🚀 Quick Start
+## 🚀 First Time Setup
 
-1. **Environment Setup**:
-   Ensure you have a valid Gemini API Key from [Google AI Studio](https://aistudio.google.com/).
+Follow these steps to set up the project locally.
 
-2. **Installation**:
-   This project uses ESM modules and runs directly in modern browsers. No build step is strictly required if served via a local web server, but for the best experience:
-   ```bash
-   # Install a simple static server if you don't have one
-   npm install -g serve
-   
-   # Run the app
-   serve .
-   ```
+### 1. Prerequisites
+- **Node.js** (v18 or higher)
+- **npm** (comes with Node.js)
+- A **Google Gemini API Key** (Get one at [Google AI Studio](https://aistudio.google.com/))
+- A **Firebase Project** (for authentication and database)
 
-3. **API Configuration**:
-   The app expects `process.env.API_KEY` to be available. In this sandbox environment, it is injected automatically. For local development, you would typically use a tool like `Vite` or `Webpack` to define this variable.
+### 2. Installation
+Clone the repository and install dependencies:
 
-4. **Firebase Setup**:
-   The current `firebase.ts` uses demo credentials. To use real data:
-   - Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com/).
-   - Enable **Email/Password Authentication**.
-   - Create a **Firestore Database** in test mode.
-   - Replace the config in `firebase.ts` with your project's web configuration.
+```bash
+# Install dependencies
+npm install
+```
 
-## 🧠 AI Features
-- **Stress Analysis**: Uses `gemini-3-flash-preview` to score task complexity.
-- **Prioritization**: Uses `gemini-3-pro-preview` with Thinking Config for strategic planning.
-- **Voice Coaching**: Uses `gemini-2.5-flash-native-audio-preview` for real-time wellness sync.
-- **Brainstorming**: Uses `gemini-2.5-flash-image` for visual concept generation.
+### 3. Environment Configuration
+Create a `.env` file in the root directory. You can copy the structure from the example below:
+
+```env
+# .env
+VITE_API_KEY=your_gemini_api_key_here
+```
+
+> **Note**: The app uses `firebase.ts` for database connection. Update `firebase.ts` with your own Firebase configuration keys if you want to use a private database instance.
+
+### 4. Running the App
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Open your browser and navigate to the URL shown in the terminal (usually `http://localhost:5173`).
+
+---
+
+## ✨ Features
+
+### 🎓 For Students
+*   **Cognitive Dashboard**: Real-time visualization of your stress levels (`0-100%`) with a "Weekly Load Pattern" heatmap.
+*   **Strategic Planner (AI)**:
+    *   **Smart Prioritization**: Gemini AI reorders your tasks based on a strictly weighted formula of **Urgency + Stress**. Imminent deadlines always come first.
+    *   **Daily Strategy**: Receive a tailored "Tactical Advisory" for the day.
+    *   **Readiness Score**: A dynamic score indicating how balanced your schedule is against your deadlines.
+*   **Private Mode**: Toggle a private layer to add personal tasks (e.g., "Part-time job", "Gym") that contribute to your stress score but remain invisible to teachers.
+*   **Calendar View**: Drag-and-drop style calendar interaction to view deadlines relative to exams.
+
+### 👨‍🏫 For Teachers
+*   **Cohort Stress Outlook**: View the aggregate stress levels of your classes to prevent burnout before assigning new deadlines.
+*   **Global Academic Calendar**: See a holistic view of your students' workload, including assignments from **other teachers** and different subjects.
+*   **Assignment Simulation**: Deploy "Vectors" (Assignments) with estimated stress scores. The system warns you if a new assignment will push the class into the "Critical Risk" zone.
+*   **Multi-Teacher Support**: Join existing classes via code to co-manage cohorts.
 
 ## 🛠 Tech Stack
-- **Frontend**: React 19, Tailwind CSS.
-- **Charts**: Recharts.
-- **Database**: Firebase Firestore.
-- **Intelligence**: Google Gemini API.
+*   **Frontend**: React 19, Tailwind CSS, Vite
+*   **AI**: Google Gemini 3 Flash & Pro (via Google GenAI SDK)
+*   **Database & Auth**: Firebase Firestore & Auth
+*   **Visualization**: Recharts

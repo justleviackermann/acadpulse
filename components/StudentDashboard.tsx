@@ -59,6 +59,11 @@ const StudentDashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
     refreshData();
   };
 
+  const handleToggleCompletion = async (taskId: string, isCompleted: boolean) => {
+    await dataService.toggleTaskCompletion(taskId, isCompleted);
+    refreshData();
+  };
+
   // Ref for the form to scroll to
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -226,67 +231,110 @@ const StudentDashboard: React.FC<{ user: UserProfile }> = ({ user }) => {
           </div>
 
           {/* Workload Feed with AI Recommended Order */}
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold text-white px-2">Strategic Execution Path</h3>
-            {visibleTasks.length === 0 ? (
-              <div className="py-20 text-center bg-gray-900/20 border-2 border-dashed border-gray-800 rounded-[2rem] text-gray-700 italic">
-                No active vectors. Add a personal task to initiate analysis.
-              </div>
-            ) : visibleTasks.sort((a, b) => {
-              const orderA = executionOrder.find(o => o.taskId === a.id)?.sequence || 99;
-              const orderB = executionOrder.find(o => o.taskId === b.id)?.sequence || 99;
-              return orderA - orderB;
-            }).map((task, idx) => {
-              const orderInfo = executionOrder.find(o => o.taskId === task.id);
-              return (
-                <div key={task.id} className={`bg-gray-950/80 border p-6 rounded-[2rem] flex items-center justify-between group transition-all relative overflow-hidden ${task.isPrivate ? 'border-purple-500/30' :
-                  idx === 0 ? 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'border-gray-800 hover:border-gray-700'
-                  }`}>
-                  {task.isPrivate && <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/10 rounded-bl-[4rem]" />}
+          <div className="space-y-8">
+            {/* ACTIVE STRATEGIC FEED */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold text-white px-2">Strategic Execution Path</h3>
+              {(() => {
+                // exclude overdue from here (they are on overdue page)
+                // include future active AND all completed
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
 
-                  <div className="flex items-center gap-6 relative z-10">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl border-2 ${task.isPrivate ? 'bg-purple-900/20 border-purple-500/50 text-purple-400' :
-                      idx === 0 ? 'bg-blue-600 border-blue-400 text-white' : 'bg-gray-900 border-gray-800 text-gray-600'
+                const feedTasks = visibleTasks.filter(t =>
+                  // Condition: (Not Overdue) OR (Completed)
+                  // "Overdue" means: Not Completed AND Due < Today
+                  // So we want: Completed OR Due >= Today
+                  t.isCompleted || new Date(t.dueDate) >= today
+                );
+
+                if (feedTasks.length === 0) return (
+                  <div className="py-20 text-center bg-gray-900/20 border-2 border-dashed border-gray-800 rounded-[2rem] text-gray-700 italic">
+                    No active vectors. Add a personal task to initiate analysis.
+                  </div>
+                );
+
+                // Sort: Not Completed First (Strategy Order), then Completed (Date)
+                const sortedFeed = feedTasks.sort((a, b) => {
+                  if (a.isCompleted !== b.isCompleted) {
+                    return a.isCompleted ? 1 : -1; // Active first
+                  }
+                  if (!a.isCompleted) {
+                    // Both Active: Use Strat Order
+                    const orderA = executionOrder.find(o => o.taskId === a.id)?.sequence || 99;
+                    const orderB = executionOrder.find(o => o.taskId === b.id)?.sequence || 99;
+                    return orderA - orderB;
+                  } else {
+                    // Both Completed: Recent first
+                    return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+                  }
+                });
+
+                return sortedFeed.map((task, idx) => {
+                  const orderInfo = executionOrder.find(o => o.taskId === task.id);
+                  const isDone = task.isCompleted;
+                  const isLate = isDone && new Date(task.dueDate) < today;
+
+                  return (
+                    <div key={task.id} className={`bg-gray-950/80 border p-6 rounded-[2rem] flex items-center justify-between group transition-all relative overflow-hidden ${isLate ? 'border-red-900/30 opacity-60 grayscale-[0.5]' :
+                        isDone ? 'border-gray-800 opacity-50 grayscale hover:grayscale-0' :
+                          task.isPrivate ? 'border-purple-500/30' :
+                            idx === 0 ? 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.1)]' : 'border-gray-800 hover:border-gray-700'
                       }`}>
-                      {idx + 1}
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-3">
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-wider ${task.isPrivate ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
-                          task.type === 'CLASS' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
-                          }`}>
-                          {task.isPrivate ? 'PRIVATE' : task.type}
-                        </span>
-                        <h4 className="font-bold text-white text-lg">{task.title}</h4>
-                        {orderInfo?.category && (
-                          <span className="text-[9px] font-black bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30 uppercase tracking-tighter">
-                            {orderInfo.category}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
-                        {orderInfo?.reason || `Due: ${task.dueDate}`}
-                      </p>
-                    </div>
-                  </div>
+                      {task.isPrivate && <div className="absolute top-0 right-0 w-16 h-16 bg-purple-500/10 rounded-bl-[4rem]" />}
 
-                  <div className="flex items-center gap-10 relative z-10">
-                    {task.type === 'PERSONAL' && (
-                      <button
-                        onClick={() => handleToggleTask(task.id, task.includeInPulse)}
-                        className={`w-12 h-6 rounded-full relative transition-all duration-500 ${task.includeInPulse ? 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]' : 'bg-gray-800'}`}
-                      >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-500 ${task.includeInPulse ? 'left-7' : 'left-1'}`} />
-                      </button>
-                    )}
-                    <div className="text-center min-w-[80px]">
-                      <div className="text-[9px] font-black text-gray-700 uppercase mb-0.5">Stress Factor</div>
-                      <div className={`text-2xl font-black ${task.stressScore > 75 ? 'text-red-500' : 'text-blue-500'}`}>{task.stressScore}</div>
+                      <div className="flex items-center gap-6 relative z-10 w-full">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl border-2 ${isLate ? 'bg-red-900/10 border-red-900/20 text-red-700' :
+                            isDone ? 'bg-gray-800 border-gray-700 text-gray-500' :
+                              task.isPrivate ? 'bg-purple-900/20 border-purple-500/50 text-purple-400' :
+                                idx === 0 ? 'bg-blue-600 border-blue-400 text-white' : 'bg-gray-900 border-gray-800 text-gray-600'
+                          }`}>
+                          {isLate ? '⚠️' : isDone ? '✓' : idx + 1}
+                        </div>
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-3">
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-wider ${isLate ? 'bg-red-900/20 text-red-600 border-red-900/30' :
+                                isDone ? 'bg-gray-800 text-gray-500 border-gray-700' :
+                                  task.isPrivate ? 'bg-purple-500/10 border-purple-500/20 text-purple-400' :
+                                    task.type === 'CLASS' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
+                              }`}>
+                              {isLate ? 'LATE COMPLETION' : task.isPrivate ? 'PRIVATE' : task.type}
+                            </span>
+                            <h4 className={`font-bold text-lg ${isDone ? 'text-gray-500 line-through' : 'text-white'}`}>{task.title}</h4>
+                            {!isDone && orderInfo?.category && (
+                              <span className="text-[9px] font-black bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30 uppercase tracking-tighter">
+                                {orderInfo.category}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">
+                            {isDone ? `Completed: ${task.dueDate}` : (orderInfo?.reason || `Due: ${task.dueDate}`)}
+                          </p>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => handleToggleCompletion(task.id, !isDone)}
+                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition ${isDone ? 'bg-gray-800 text-gray-500 hover:bg-gray-700' : 'bg-green-500/10 hover:bg-green-500/20 text-green-500 opacity-0 group-hover:opacity-100'
+                              }`}
+                          >
+                            {isDone ? 'Completed' : 'Mark Complete'}
+                          </button>
+
+                          {!isDone && (
+                            <div className="text-center min-w-[80px]">
+                              <div className="text-[9px] font-black text-gray-700 uppercase mb-0.5">Stress Factor</div>
+                              <div className={`text-2xl font-black ${task.stressScore > 75 ? 'text-red-500' : 'text-blue-500'}`}>{task.stressScore}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                });
+              })()}
+            </div>
           </div>
         </div>
 

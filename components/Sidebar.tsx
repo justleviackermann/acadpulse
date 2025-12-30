@@ -13,6 +13,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, role, onLo
   const menuItems = [
     { id: AppView.DASHBOARD, label: 'Pulse Dashboard', icon: '📊' },
     role === UserRole.STUDENT && { id: AppView.STRATEGY, label: 'Strategy', icon: '🧠' },
+    role === UserRole.STUDENT && { id: AppView.TASKS, label: 'Overdue', icon: '⚠️' },
     role === UserRole.STUDENT && { id: AppView.CLASSES, label: 'Classes', icon: '🏫' },
   ].filter(Boolean) as { id: AppView, label: string, icon: string }[];
 

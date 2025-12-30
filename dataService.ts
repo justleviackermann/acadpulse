@@ -196,8 +196,14 @@ export const dataService = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
   },
 
-  togglePulse: async (taskId: string, includeInPulse: boolean) => {
-    await updateDoc(doc(db, 'tasks', taskId), { includeInPulse });
+  togglePulse: async (taskId: string, current: boolean) => {
+    const ref = doc(db, 'tasks', taskId);
+    await updateDoc(ref, { includeInPulse: current });
+  },
+
+  toggleTaskCompletion: async (taskId: string, isCompleted: boolean) => {
+    const ref = doc(db, 'tasks', taskId);
+    await updateDoc(ref, { isCompleted });
   },
 
   getStudentStressStats: async (studentUid: string) => {
@@ -353,17 +359,37 @@ export const dataService = {
   },
 
   getWeeklyHeatmap: (tasks: Task[]) => {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const activeTasks = tasks.filter(t => t.includeInPulse || t.type === 'CLASS');
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const now = new Date();
 
-    return days.map((day, i) => {
-      const base = activeTasks.reduce((acc, t) => acc + (t.stressScore / 5), 0);
-      const variance = Math.sin(i * 0.8) * 15;
+    // Initialize map for next 7 days
+    const dailyLoads = new Array(7).fill(0).map((_, i) => {
+      const d = new Date();
+      d.setDate(now.getDate() + i);
       return {
-        day,
-        score: Math.max(0, Math.min(100, Math.round(base + variance)))
+        date: d.toDateString(),
+        dayName: days[d.getDay()], // Get correct day name
+        load: 0
       };
     });
+
+    const activeTasks = tasks.filter(t => t.includeInPulse || t.type === 'CLASS');
+
+    activeTasks.forEach(t => {
+      if (!t.dueDate) return;
+      const d = new Date(t.dueDate);
+
+      // Find if this date matches one of our next 7 days
+      const targetDay = dailyLoads.find(day => day.date === d.toDateString());
+      if (targetDay) {
+        targetDay.load += t.stressScore;
+      }
+    });
+
+    return dailyLoads.map(d => ({
+      day: d.dayName,
+      score: Math.min(d.load, 100) // Cap visualization at 100 for clarity
+    }));
   },
 
   getMonthlyProjection: async (classId: string) => {

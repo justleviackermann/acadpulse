@@ -44,6 +44,7 @@ export interface Task {
   stressScore: number;
   includeInPulse: boolean;
   isPrivate: boolean;
+  isCompleted?: boolean;
   importance?: number; // 1-10
 }
 
