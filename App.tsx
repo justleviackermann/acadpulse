@@ -61,7 +61,24 @@ const App: React.FC = () => {
       }
       // The auth listener will update the flow to DASHBOARD
     } catch (err: any) {
-      alert(err.message);
+      console.error("Auth Error:", err);
+      // Improve Error Handling
+      if (err.code === 'auth/user-not-found' || err.message.includes('user-not-found')) {
+        alert("We couldn't find an account with this email. Taking you to registration...");
+        setIsSigningUp(true);
+      } else if (err.code === 'auth/wrong-password' || err.message.includes('wrong-password')) {
+        alert("Incorrect password. Please try again.");
+      } else if (err.code === 'auth/invalid-credential') {
+        // Generic error (could be either), but if user is confused, offer registration
+        if (window.confirm("Login failed (Invalid Credentials). If you don't have an account, click OK to Register.")) {
+          setIsSigningUp(true);
+        }
+      } else if (err.code === 'auth/email-already-in-use') {
+        alert("This email is already registered. Please Log In instead.");
+        setIsSigningUp(false);
+      } else {
+        alert(`Authentication Error: ${err.message}`);
+      }
     }
   };
 
