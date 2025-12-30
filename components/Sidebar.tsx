@@ -12,10 +12,8 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, role, onLogout }) => {
   const menuItems = [
     { id: AppView.DASHBOARD, label: 'Pulse Dashboard', icon: '📊' },
-    { id: AppView.ASSIGNMENTS, label: role === UserRole.TEACHER ? 'Curriculum' : 'Workload', icon: '📝' },
-    role === UserRole.STUDENT && { id: AppView.INTELLIGENCE_HUB, label: 'Intelligence Hub', icon: '🧠' },
-    { id: AppView.STRESS_ANALYSIS, label: 'Voice Intel', icon: '🎙️' },
-    { id: AppView.RESOURCES, label: 'Assets', icon: '📚' },
+    role === UserRole.STUDENT && { id: AppView.STRATEGY, label: 'Strategy', icon: '🧠' },
+    role === UserRole.STUDENT && { id: AppView.CLASSES, label: 'Classes', icon: '🏫' },
   ].filter(Boolean) as { id: AppView, label: string, icon: string }[];
 
   return (
@@ -30,11 +28,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, role, onLo
           <button
             key={item.id}
             onClick={() => onViewChange(item.id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 ${
-              currentView === item.id
-                ? 'bg-blue-600/10 text-blue-400 border border-blue-600/20 font-bold'
-                : 'text-gray-500 hover:bg-gray-900 hover:text-gray-200'
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 ${currentView === item.id
+              ? 'bg-blue-600/10 text-blue-400 border border-blue-600/20 font-bold'
+              : 'text-gray-500 hover:bg-gray-900 hover:text-gray-200'
+              }`}
           >
             <span className="text-xl">{item.icon}</span>
             <span className="font-medium text-sm">{item.label}</span>
@@ -49,12 +46,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, role, onLo
             <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{role} Portal</span>
           </div>
           <p className="text-[10px] text-gray-600 font-mono leading-tight">
-            Acad-Sync Engine v1.1<br/>
+            Acad-Sync Engine v1.1<br />
             Neural Predictor Active
           </p>
         </div>
-        
-        <button 
+
+        <button
           onClick={onLogout}
           className="w-full py-3 text-xs font-bold text-gray-500 hover:text-red-400 transition flex items-center justify-center gap-2"
         >

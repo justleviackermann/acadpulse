@@ -7,10 +7,7 @@ export enum UserRole {
 
 export enum AppView {
   DASHBOARD = 'DASHBOARD',
-  ASSIGNMENTS = 'ASSIGNMENTS',
-  INTELLIGENCE_HUB = 'INTELLIGENCE_HUB',
-  STRESS_ANALYSIS = 'STRESS_ANALYSIS',
-  RESOURCES = 'RESOURCES',
+  STRATEGY = 'STRATEGY',
   CLASSES = 'CLASSES',
   TASKS = 'TASKS',
   PROFILE = 'PROFILE'
@@ -19,15 +16,20 @@ export enum AppView {
 export interface UserProfile {
   uid: string;
   email: string;
+  displayName: string;
+  photoURL?: string;
   role: UserRole;
-  displayName?: string;
+  classId?: string; // For students
+  registerNumber?: string; // For students
+  department?: string; // For teachers
 }
 
 export interface Class {
   id: string;
   name: string;
   code: string;
-  teacherUid: string;
+  teacherUid?: string; // Legacy support
+  teacherUids: string[];
   studentUids: string[];
 }
 
@@ -36,12 +38,12 @@ export interface Task {
   title: string;
   description: string;
   type: 'CLASS' | 'PERSONAL';
-  classId?: string; 
-  studentUid: string; 
+  classId?: string;
+  studentUid: string;
   dueDate: string;
   stressScore: number;
-  includeInPulse: boolean; 
-  isPrivate: boolean; 
+  includeInPulse: boolean;
+  isPrivate: boolean;
   importance?: number; // 1-10
 }
 
